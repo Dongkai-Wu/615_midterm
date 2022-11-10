@@ -8,7 +8,7 @@ library(magrittr)
 library(readxl)
 
 ## Start by reading the data
-strawb <- read_excel("Desktop/615/strawberries-2022oct30-a.xlsx",col_names = TRUE)
+strawb <- read_excel("~/Desktop/615/strawberries-2022oct30-a.xlsx", col_names = TRUE)
 
 # data cleaning and rearrange
 ## Get the column names and index them

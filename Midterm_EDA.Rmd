@@ -1,0 +1,596 @@
+---
+title: "Midterm_EDA"
+author: "Kai"
+date: "2022-11-09"
+output: html_document
+---
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(magrittr)
+library(readxl)
+library(ggplot2)
+```
+
+
+```{r}
+## Start by reading the data
+strawb <- read_excel("~/Desktop/615/strawberries-2022oct30-a.xlsx")
+## Get the column names and index them
+cnames <- colnames(strawb)
+x <- 1:dim(strawb)[2]
+
+## Explore data by viewing it in R.  
+## Double click the strawb data frame to lauch the view() function.
+## The data frame has 1008 rows, so you can't get very far by
+## simply scrolling around.  But, you can generate some initial
+## questions to help you explore using R functions from the
+## tidyverse.  
+##
+## It looks like some of the columns may be blank or may contain 
+## a single unique value.  These columns can be eliminated without 
+## losing any information.
+
+## Start by examining the content of the columns
+
+## Column 1 contains two unique values.  
+## Retain column 1 -- those values might be needed.
+unique(strawb[1])
+
+## Column 2 -- contains the years included in this dataset.
+## Keep column 2, of course.
+unique(strawb[2])
+
+## Column 3 -- contains the time periods covered by in the dataset.
+## There's only one -- years.  No info here.  Drop it
+unique(strawb[3])
+
+## you don't have to do this one column at a time.
+## Note that the cells of columns that are empty contain NA, so
+## the number of unique values in these columns is 1, just 
+## like column_3.
+
+## Set T as an indicator
+T <- NULL
+
+## Collect number of unique rows in each column
+for(i in x){T <- c(T, dim(unique(strawb[i]))[1])}
+
+## Use T to select columns to drop -- 
+drop_cols <- cnames[which(T == 1)]
+
+## Now, drop the columns with only one unique value.
+strawb %<>% select(!all_of(drop_cols))
+
+## Let's arrange the data frame by year and state.
+strawb %<>% arrange(Year, State)
+
+
+## Look at the strawb data frame again. You can see that the 
+## columns need work. The State ANSI column contains a unique
+## code for each state. If you need to access US Census data for
+## the states, this code will come in handy.
+
+colnames(strawb)
+
+## now look at the `Data Item` column
+
+temp1 <- strawb %>% select(`Data Item`) %>% 
+         distinct()
+
+## Look at temp1!  There's a lot going on there.
+## In fact, it's at least three columns packed into one.
+## Use separate() to split it up
+
+## When you run this code you can see that there are 
+## some rows where `Data Item` has 4 comma-separated 
+## data items.  Look at the warning on the Console 
+## after 
+
+strawb2 <- strawb %>% separate(col=`Data Item`,
+                into = c("Strawberries", "items", "units"),
+                sep = ",",
+                fill = "right")
+
+## try 4 columns
+
+strawb3 <- strawb %>% separate(col=`Data Item`,
+            into = c("Strawberries", "type", "items", "units"),
+                               sep = ",",
+                               fill = "right")
+
+## That worked. Clean up the dat.
+
+rm(strawb2, strawb3)
+
+strawb %<>% separate(col=`Data Item`,
+                    into = c("Strawberries", "type", "items", "units"),
+                    sep = ",",
+                    fill = "right")
+
+## now explore the new columns
+
+## we know that "THIRAM" is a chemical in the data, so
+## test for it to check out the way code
+r_thiram <- grep("THIRAM", strawb$`Domain Category`)
+r_thiram_1 <- grep("Thiram", 
+                   strawb$`Domain Category`, 
+                   ignore.case = T)
+
+## Chemicals mentioned in 
+## the "Shoppers Guide to Pesticides in Produce"
+## Carbendazim, Bifenthrin, methyl bromide, 1,3-dichloropropene,
+## chloropicrin, Telone
+
+df_carbendazim <- grep("carbendazim", 
+                       strawb$`Domain Category`, ignore.case = T)
+
+## Bifenthrin found 27
+df_Bifenthrin <- grep("Bifenthrin", 
+                       strawb$`Domain Category`, ignore.case = T)
+
+## methyl bromide found 3
+df_methyl_bromide <- grep("methyl bromide", 
+                      strawb$`Domain Category`, ignore.case = T)
+
+## 1,3-dichloropropene empty
+df_1_3_dichloropropene <- grep("1,3-dichloropropene", 
+                          strawb$`Domain Category`, 
+                          ignore.case = T)
+
+## chloropicrin found 18
+df_chloropicrin <- grep("chloropicrin", 
+                               strawb$`Domain Category`, 
+                               ignore.case = T)
+
+## Telone empty
+df_Telone <- grep("Telone", 
+                        strawb$`Domain Category`, 
+                        ignore.case = T)
+
+temp1 <- strawb %>% select(Strawberries) %>% 
+  distinct()
+
+pr_rec <- grep("STRAWBERRIES - PRICE RECEIVED", 
+                  strawb$Strawberries, 
+                  ignore.case = T)
+
+type_organic <- grep("organic", 
+               strawb$type, 
+               ignore.case = T)
+
+items_organic <- grep("organic", 
+                      strawb$items, 
+                      ignore.case = T)  ## nothing here
+
+Domain_organic <- grep("organic", 
+                      strawb$Domain, 
+                      ignore.case = T)
+
+
+Domain_Category_organic <- grep("organic", 
+                       strawb$`Domain Category`, 
+                       ignore.case = T)
+
+## OK.  So let's create a strawb_organic tibble
+## All three are the same
+
+same <- (intersect(type_organic, Domain_organic)==
+         intersect(type_organic, Domain_organic))
+length(same)==length(type_organic)
+
+
+org_rows <- intersect(type_organic, Domain_organic)
+
+strawb_organic <- strawb %>% slice(org_rows, preserve = FALSE)
+
+strawb_non_organic <- strawb %>% filter(!row_number() %in% org_rows)
+
+temp1 <- strawb_non_organic %>% select(type) %>% 
+  distinct()
+
+## the chemical data in the column "type" 
+## is in the rows where type = BEARING - Applications
+
+chem_rows <- grep("BEARING - APPLICATIONS", 
+                       strawb_non_organic$type, 
+                       ignore.case = T)
+## of the 2172 rows in strawb_non_organic 2112 contain
+## chemical data
+
+## the column "Domain" also contains indications of rows 
+## 
+
+chem_rows_1 <- grep("chemical", 
+                  strawb_non_organic$Domain, 
+                  ignore.case = T)
+
+## there are less chem rows in the Domain column
+## than in the type column
+
+ins <- intersect(chem_rows, chem_rows_1)
+
+## the cardinality of the intersection equals the cardinality
+## of chem_rows_1.  So, chem_rows calls all of the chem rows 
+## we have found so far.
+
+## Finally, we examine the `Domain Category`column.
+
+chem_rows_2 <- grep("chemical", 
+                    strawb_non_organic$`Domain Category`, 
+                    ignore.case = T)
+
+ins_2 <- intersect(chem_rows, chem_rows_2)
+
+## again, all of the row numbers in chem_rows_2 are in 
+## chem_rows
+
+
+## now sort out these tibbles just like we did strawb
+## Now, create a chem tibble
+
+
+strawb_chem <- strawb_non_organic %>% slice(chem_rows, preserve = FALSE)
+
+## now clean up the workspace before tackling the three tibbles just created.
+
+rm(x, T, drop_cols, temp1, r_thiram, r_thiram_1,
+   df_carbendazim, df_Bifenthrin, df_methyl_bromide, 
+   df_1_3_dichloropropene, df_chloropicrin, df_Telone,
+   pr_rec, type_organic, items_organic, Domain_organic,
+   Domain_Category_organic, same, org_rows, chem_rows,
+   chem_rows_1, chem_rows_2, ins, ins_2, cnames, i)
+
+  before_cols = colnames(strawb_chem)
+  T = NULL
+  x = length(before_cols)
+
+   for(i in 1:x){
+    b <- length(unlist(strawb_chem[,i] %>% unique()) )
+    T <- c(T,b)
+   }
+    
+  drop_cols <- before_cols[which(T == 1)]
+  strawb_chem %<>% select(!all_of(drop_cols))
+  after_cols = colnames(strawb_chem)
+  
+  temp1 <- strawb_chem %>% select(units) %>% distinct()
+  
+  strawb_chem %<>% separate(col=`Domain Category`, 
+                                    into = c("dc1", "chem_name"),
+                                    sep = ":", 
+                                    fill = "right")
+  
+temp1 <- strawb_chem %>% select(chem_name) %>% unique()
+length(unlist(temp1))
+
+## first clean it up
+
+aa  <- grep("measured in", 
+                    strawb_chem$items, 
+                    ignore.case = T)
+
+sum(strawb_chem$Domain == strawb_chem$dc1) == dim(strawb_chem)[1]
+
+## yes, they are. let's work with dc1. Also, drop State ANSI
+
+strawb_chem %<>% select(Year, State, items, units, dc1, chem_name, Value)
+
+strawb_chem %<>% rename(category = units)
+
+## remove "MEASURED IN " 
+
+strawb_chem$items <- str_remove_all(strawb_chem$items, "MEASURED IN ")
+
+## rename items to units
+strawb_chem %<>% rename(units = items)
+
+bb  <- grep("CHEMICAL, ", 
+            strawb_chem$dc1, 
+            ignore.case = T)
+length(bb)
+chem <- 1:2112
+
+non_chem_rows <- setdiff(chem, bb)
+length(non_chem_rows)
+
+temp1 <- strawb_chem %>% slice(non_chem_rows)
+
+fertilizers <- temp1
+
+## cleanup
+rm(temp1, temps, temp3, aa, bb)
+
+strawb_chem$dc1 <- str_remove_all(strawb_chem$dc1, "CHEMICAL, ")
+
+strawb_chem$dc1 %>% unique()
+
+strawb_chem %<>% rename(chem_types = dc1)
+
+bb  <- grep("BIFENTHRIN", 
+            strawb_chem$chem_name, 
+            ignore.case = T)
+
+bifen <- strawb_chem %>% slice(bb)
+
+strawb_chem$chem_name <- str_remove_all(strawb_chem$chem_name, "\\(")
+
+strawb_chem$chem_name <- str_remove_all(strawb_chem$chem_name, "\\)")
+
+strawb_chem %<>% separate(col = chem_name,
+                          into = c("chem_name","chem_code"),
+                          sep = "=",
+                          fill = "right"
+                            ) 
+aa <- which(strawb_chem$units == " LB")
+
+bb <- which(is.na(strawb_chem$category))
+
+sum(aa==bb)==length(aa)
+
+```
+
+# EDA-Chemicals 
+# Chemicals Used In Different States
+```{r}
+cali_chem <- strawb_chem %>% filter(`State` == 'CALIFORNIA')
+flor_chem <- strawb_chem %>% filter(`State` == 'FLORIDA')
+strawb_chem$Value <- as.numeric(strawb_chem$Value)
+strawb_chem <- strawb_chem %>% filter(`chem_name` != ' TOTAL')
+ggplot(strawb_chem) +
+  aes(x = chem_types, y = Value) +
+  geom_col(fill = "#112446") +
+  theme_linedraw() +
+  facet_wrap(vars(State))
+```
+From the chart we could see that California used way more chemicals than Florida and Oregon add together. And among those used chemicals in California, fertilizers are used the most. 
+
+
+# Chemicals Used In California
+```{r}
+ggplot(cali_chem) +
+  aes(x = chem_types, y = Value, fill = chem_name) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Chemical Types",
+    y = "Value",
+    title = "Chemicals Used In California"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none") +
+  facet_wrap(vars(Year))
+```
+This chart further digests the chart into four different years. We could see that in 2018 the amount of fertilizer used is boosted. 
+
+
+
+# This is the list of all the chemcial names
+```{r}
+ggplot(cali_chem) +
+  aes(x = chem_types, y = Value, fill = chem_name) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+This is the dictionary for the previous plot. 
+
+
+# Top 5 chemicals used in California
+```{r}
+calirank <- cali_chem[order(cali_chem$Value, decreasing = TRUE), ]
+caliranktop5 <- calirank[1:5,]
+print(caliranktop5)
+```
+As we saw in the charts, in 2018 the most used chemical is fertilizer and here shows the 3 fertilizers that been used the most in 2018. And two other leading chemicals used in 2019 and 2021. 
+
+
+# Chemicals Used In Florida
+```{r}
+ggplot(flor_chem) +
+  aes(x = chem_types, y = Value, fill = chem_name) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Chemical Type",
+    y = "Value",
+    title = "Chemicals Used In Florida",
+    fill = "Chemical Name"
+  ) +
+  theme_linedraw() +
+  facet_wrap(vars(Year))
+```
+This charts show the chemicals been used in Florida over those 4 years. We could see the most used chemicals in 2018 and 2019 are all fertilizers. And green is showing obviously for these for charts and that is the chemical called CAPTAN. 
+
+
+
+# Top 5 chemicals used in Florida
+```{r}
+florrank <- flor_chem[order(flor_chem$Value, decreasing = TRUE), ]
+florranktop5 <- florrank[1:5,]
+print(florranktop5)
+```
+
+
+
+# Chemicals Used In Florida from 2016, 2018, 2019, 2020
+```{r}
+flor_chem <- strawb_chem %>% filter(`State` == 'FLORIDA')
+ggplot(flor_chem) +
+  aes(x = chem_types, y = Value, fill = chem_name) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(x = "Chemical Types", y = "Value", title = "Chemical Use in Florida for 2016, 2018, 2019, 2020")+
+  theme_minimal()
+```
+
+
+
+#EDA non-organ
+```{r}
+non_organ_sales <- strawb_non_organic[grep("MEASURED", strawb_non_organic$type),]
+
+
+# create a dataset
+year <- non_organ_sales$Year
+state <- non_organ_sales$State
+value <- non_organ_sales$Value
+plot_data <- data.frame(year,state,value)
+ 
+# Grouped
+ggplot(plot_data, aes(fill=year, y=reorder(value, year), x=state)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle("Non-Organ Strawberry market price ($/CWT)") +
+    ylab('value')
+
+
+
+# 
+# unique(strawb$type)
+# norg <- strawb%>%filter(Domain != 'ORGANIC STATUS')
+# 
+# nonorgan <- filter(strawb, Domain != 'ORGANIC STATUS')
+# non_organ_sales <- norg[grep('sales', norg$type),]
+```
+#EDA fertilizer usage
+```{r}
+# create a dataset for average
+fert_avg <- fertilizers[grep('YEAR', fertilizers$units),]
+year <- as.factor(fert_avg$Year)
+state <- fert_avg$State
+value <- as.integer(fert_avg$Value)
+name <- fert_avg$chem_name
+plot_data_fert <- data.frame(year,state,value, name)
+# Grouped
+
+  
+for (i in 1:length(unique(name))){
+  name_i <- unique(name)[i]
+  df_f <- plot_data_fert %>% filter(plot_data_fert$name == name_i)
+
+  out <- ggplot(df_f, aes(fill=year, y=value, x=state)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle(paste("fertlizer usage", name_i, " (LB / ACRE / YEAR)")) +
+    ylab('value')
+    print(out)
+
+}
+```
+
+
+
+# Cleaning the organic strawberry's data
+```{r}
+#### clean the strawb_organic ####
+
+library(ggplot2)
+
+#get the colum names and the number of columns of this data
+cols <- colnames(strawb_organic)
+
+x = dim(strawb_organic)[2]
+
+#find the columns that only have one value
+drop = NULL
+for(i in 1:x){
+  if(dim(unique(strawb_organic[i]))[1]==1){drop = c(drop, i)}
+}
+
+rmcol = cols[drop]
+
+#drop the columns
+strawb_organic %<>% select(!all_of(rmcol))
+
+strawb_organic %<>% arrange(type)
+
+#Remove " - SALES"
+strawb_organic$items = str_remove_all(strawb_organic$items, " - SALES")
+strawb_organic$type = str_remove_all(strawb_organic$type, " - SALES")
+
+#rename and organize colum "type", "units", "items"
+strawb_organic %<>% rename(types = type)
+
+strawb_organic$types[1:38] = strawb_organic$items[1:38]
+strawb_organic$items[1:38] = strawb_organic$units[1:38]
+
+#remove the useless column "units"
+strawb_organic %<>% select(!all_of("units"))
+strawb_organic %<>% rename(units = items)
+
+#remove "MEASURED IN"
+strawb_organic$units = str_remove_all(strawb_organic$units, "MEASURED IN ")
+
+#get the organic strawberry's price
+strawb_organic %<>% arrange(Year)
+
+row_price = grep("\\$", strawb_organic$units)
+org_price = strawb_organic %>% slice(row_price)
+
+##fill in (D) in Value column with median corresponding to each year
+D = grep("D", org_price$Value)
+org_price$Value[D] = 0
+org_price$Value = as.numeric(org_price$Value)
+value2016 = org_price[1:16,]
+value2019 = org_price[17:31,]
+org_price$Value[c(3:4,6:9)] = median(value2016$Value)
+org_price$Value[c(20:23,28)] = median(value2019$Value)
+
+org_price %<>% mutate(Year = as.character(Year))
+
+```
+
+
+
+#EDA organic strawberry price
+```{r}
+#Plot the price of the organic strawberries by year
+ggplot(org_price, aes(x = Year, y = Value, fill = Year)) +
+  geom_bar(stat="identity")
+#The organic strawberry's total price of all six states increased a lot from 2016 to 2019. There are more people realize the organic strawberries are better and buy them.
+
+
+#Since the price of California and Florida is much higher than other states, I plot the price of these two states separately.
+
+#Plot the price of the organic strawberries in California
+ggplot(org_price[which(org_price$State== "CALIFORNIA"),], aes(x = types, y = Value, fill = Year), ) +
+  geom_col(position = "dodge") +
+  ggtitle("California") 
+#In California, the total price of strawberry for each type increased from 2016 to 2019. This means the organic strawberries become more popular in California.
+
+
+#Plot the price of the organic strawberries in Florida
+ggplot(org_price[which(org_price$State== "FLORIDA"),], aes(x = types, y = Value, fill = Year), ) +
+  geom_col(position = "dodge") +
+  ggtitle("Florida")
+#In Florida, the total price of strawberry for each type rapidly increased from 2016 to 2019. This means the organic strawberries become much more popular in Florida.
+
+
+#Plot the price of the organic strawberries in other states
+ggplot(org_price[which(org_price$State != "CALIFORNIA" & org_price$State != "FLORIDA"),], aes(x = State, y = Value, fill = Year), ) +
+  geom_col(position = "dodge") +
+  ggtitle("Other States except California and Florida")
+#Compare to other states, Oregon has the highest price, but the price went slightly down from 2016 to 2019. Similarly, Pennsylvania state's organic strawberry price went slightly up, but the total price was very low. Since the differences are small, I think people's attitude to organic strawberries in these two states barely changed.
+#New Jersey's price of organic strawberries increased a lot and New York's price of organic strawberries also increased from 2016 to 2019. This means people in New Jersey and New York bought the organic strawberries much more than before.
+
+
+```
+EDA Sales of strawberries with fungicide and insecticide in LB
+```{r}
+strawb_chem$Value <- as.numeric(strawb_chem$Value)
+strawb_chem2 <- strawb_chem %>% drop_na(Value)
+
+FF <- filter(strawb_chem2,str_detect(`chem_types`,"FUNGICIDE"))
+FF <- FF %>% filter(units == " LB")
+F1<-aggregate(FF$Value, by = list(Year = FF$Year,State = FF$State),sum)
+ggplot(data = F1,aes(x=Year, y=x, group = State,color = State, shape = State))+geom_line()+geom_point()+ggtitle("Sales of strawberries with fungicide in LB")+ylab("LB")+theme(plot.title = element_text(hjust = 0.5))
+
+I <- filter(strawb_chem2,str_detect(`chem_types`,"INSECTICIDE"))
+I <- I %>% filter(units == " LB")
+I1<-aggregate(I$Value, by = list(Year = I$Year,State = I$State),sum)
+ggplot(data = I1,aes(x=Year, y=x, group = State,color = State, shape = State))+geom_line()+geom_point()+ggtitle("Sales of strawberries with insecticide in LB")+ylab("LB")+theme(plot.title = element_text(hjust = 0.5))
+#From the few existing total sales data, we can find the sales of strawberries with fungicides and insecticides in California. The sales trend in California is basically the same in recent years, first falling, then rising and finally falling, and they are all located in this area. Highest annual sales in several states. The trend is different in Florida. Fungicide strawberry sales fell first and then increased. Insecticide strawberry sales were the opposite and generally leveled off. Oregon has too little data, and other states have too little data in the pound table. Very few. difficult to reflect. But 2018 can be found to be a turning point, with lower sales of strawberries.
+```
+
+
